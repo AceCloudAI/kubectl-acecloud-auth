@@ -73,29 +73,28 @@ fi
 chmod +x "${TMP}/${BINARY}"
 
 # ---- choose install dir ------------------------------------------------------
+# Prefer a user-writable dir so we never need sudo. Use /usr/local/bin only when
+# it's already writable (e.g. Intel Homebrew); otherwise fall back to ~/.local/bin.
 if [ -z "${INSTALL_DIR:-}" ]; then
   if [ -w /usr/local/bin ] 2>/dev/null; then
     INSTALL_DIR="/usr/local/bin"
-  elif command -v sudo >/dev/null 2>&1 && [ -d /usr/local/bin ]; then
-    INSTALL_DIR="/usr/local/bin"
-    USE_SUDO=1
   else
     INSTALL_DIR="${HOME}/.local/bin"
-    mkdir -p "$INSTALL_DIR"
   fi
 fi
+mkdir -p "$INSTALL_DIR"
 
 info "Installing to ${INSTALL_DIR}/${BINARY}"
-if [ "${USE_SUDO:-0}" = "1" ]; then
-  sudo mv "${TMP}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
-else
-  mv "${TMP}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
-fi
+mv "${TMP}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
 
 # ---- verify + next steps -----------------------------------------------------
 if ! echo ":$PATH:" | grep -q ":${INSTALL_DIR}:"; then
+  case "${SHELL:-}" in
+    *zsh) PROFILE="~/.zshrc" ;;   # macOS default
+    *)    PROFILE="~/.bashrc" ;;
+  esac
   printf '\033[0;33mNote:\033[0m %s is not on your PATH. Add it:\n' "$INSTALL_DIR"
-  printf '  echo '\''export PATH="%s:$PATH"'\'' >> ~/.bashrc && source ~/.bashrc\n' "$INSTALL_DIR"
+  printf '  echo '\''export PATH="%s:$PATH"'\'' >> %s && source %s\n' "$INSTALL_DIR" "$PROFILE" "$PROFILE"
 fi
 
 ok "Installed. Verify with: kubectl acecloud_auth version"
