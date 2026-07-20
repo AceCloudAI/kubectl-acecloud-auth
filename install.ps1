@@ -27,11 +27,11 @@ New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 $Dest = Join-Path $InstallDir $Binary
 
 Write-Host "==> Downloading $Asset..."
-Invoke-WebRequest -Uri $Url -OutFile $Dest
+Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Dest
 
 # Verify checksum if available
 try {
-    $sums = (Invoke-WebRequest -Uri "https://github.com/$Repo/releases/download/$Version/checksums.txt").Content
+    $sums = (Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/$Repo/releases/download/$Version/checksums.txt").Content
     $expected = ($sums -split "`n" | Where-Object { $_ -match [regex]::Escape($Asset) }) -split '\s+' | Select-Object -First 1
     if ($expected) {
         $actual = (Get-FileHash -Algorithm SHA256 $Dest).Hash.ToLower()
@@ -40,12 +40,18 @@ try {
     }
 } catch { Write-Host "==> Skipping checksum verification" }
 
-# Add install dir to the user PATH if missing
+# Add install dir to the persistent user PATH if missing
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath -notlike "*$InstallDir*") {
     [Environment]::SetEnvironmentVariable("Path", "$userPath;$InstallDir", "User")
-    Write-Host "==> Added $InstallDir to your PATH (restart your shell)"
+    Write-Host "==> Added $InstallDir to your PATH"
+}
+# Also update THIS session so verification works without restarting the shell
+if ($env:Path -notlike "*$InstallDir*") {
+    $env:Path = "$env:Path;$InstallDir"
 }
 
 Write-Host "==> Installed to $Dest"
-Write-Host "Verify with: kubectl acecloud_auth version"
+Write-Host ""
+Write-Host "Verify with:  kubectl acecloud_auth version"
+Write-Host "(New terminals pick up the PATH change automatically.)"
